@@ -1,0 +1,39 @@
+node{
+ stage('Git Checkout'){
+	git credentialsId: 'git-creds', url: 'https://github.com/kumaruday14/Devops-project' 
+ }
+ stage('Maven Package'){
+    def mvnHome = tool name: 'maven', type: 'maven'
+    def mvnCMD = "${mvnHome}/bin/mvn"
+    sh "${mvnCMD} clean package"
+ }
+ 
+ stage('Build Docker Imager'){
+   sh 'docker build -t udaykumar7777/first-docker-image:0.0.1 .'
+ }
+ 
+ stage('Push to Docker Hub'){
+ 
+	 withCredentials([string(credentialsId: 'docker-pwd', variable: 'dockerHubPwd')]) {
+        sh "docker login -u udaykumar7777 -p ${dockerHubPwd}"
+     }
+	 sh 'docker push udaykumar7777/first-docker-image:0.0.1'
+ }
+ stage('Remove Previous Container'){
+	try{
+		def dockerRm = 'docker rm -f tomcat-container'
+		sshagent(['dev-server']) {
+			sh "ssh -o StrictHostKeyChecking=no ec2-user@172.31.38.100 ${dockerRm}"
+		}
+	}catch(error){
+		//  do nothing if there is an exception
+	}
+ }
+ stage('Deploy to Dev Environment'){
+   def dockerRun = 'docker run --restart=always -d -p 8080:8080 --name tomcat-container udaykumar7777/first-docker-image:0.0.1'
+   sshagent(['dev-server']) {
+    sh "ssh -o StrictHostKeyChecking=no ec2-user@172.31.38.100 ${dockerRun}"
+   }
+ }
+}
+
